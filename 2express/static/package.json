@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "body-parser": "^1.18.3",
+    "content-type": "^1.0.4",
+    "express": "^4.16.4",
+    "iconv-lite": "^0.4.24",
+    "mime": "^2.4.0",
+    "qs": "^6.6.0",
+    "querystring": "^0.2.0"
+  }
+}

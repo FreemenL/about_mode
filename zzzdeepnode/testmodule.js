@@ -1,0 +1,1 @@
+console.log(require.extensions['.json'](module,'./index.json'));

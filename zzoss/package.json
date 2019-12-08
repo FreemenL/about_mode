@@ -1,0 +1,46 @@
+{
+  "name": "find-job",
+  "version": "1.0.2",
+  "description": "",
+  "main": "index.js",
+  "bin": {
+    "find-job": "./index.js"
+  },
+  "author": "freemenL",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FreemenL/find-job.git"
+  },
+  "files": [
+    "index.js",
+    "package-lock.json",
+    "package.json",
+    "lib",
+    "file",
+    "config",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^2.4.2",
+    "commander": "^2.20.0",
+    "jsonfile": "^5.0.0",
+    "lodash": "^4.17.11",
+    "lodash.merge": "^4.6.1",
+    "puppeteer": "^1.14.0",
+    "qs": "^6.7.0",
+    "querystring": "^0.2.0",
+    "request": "^2.88.0",
+    "string_decoder": "^1.2.0"
+  },
+  "devDependencies": {
+    "chalk-pipe": "^2.0.0",
+    "inquirer": "^6.2.2",
+    "lodash.merge": "^4.6.1",
+    "puppeteer": "^1.14.0"
+  }
+}
