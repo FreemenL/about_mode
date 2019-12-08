@@ -14,14 +14,15 @@ Node.js 作为一个足够优秀的js运行时 ，早已成为一名合格的前
 接下来我们将带着如下问题（或许在面试中也会碰到）一起深入探讨nodejs的模块系统。
 
 1. CommonJS规范如何定义模块的？
-2. 在nodejs 中引入一个模块经历了哪些步骤？
-3. require 函数支持导入哪几类文件?
-4. nodejs 模块中的 exports, require, module, __filename, __dirname 这些值究竟是哪儿来的？ 
-5. module.exports 与 exports 有什么区别？
-6. nodejs中如何判断一个文件是否是被直接运行？
-7. nodejs是如何实现模块缓存的？
-8. 模块的循环依赖，会导致死循环么？
-
+2. nodejs 是如何实现一个模块的？-
+3. 在nodejs 中引入一个模块经历了哪些步骤？
+4. require 函数支持导入哪几类文件?
+5. nodejs 模块中的 exports, require, module, __filename, __dirname 这些值究竟是哪儿来的？ 
+6. module.exports 与 exports 有什么区别？
+7. nodejs中如何用多种方式判断一个文件是否是被直接运行？
+8. nodejs是如何实现模块缓存的？-
+9. 模块的循环依赖，会导致死循环么？-
+10. nodejs中当目录作为一个模块时是如何被加载的？
 
 
 ### CommonJS规范对模块的定义
@@ -311,7 +312,7 @@ function wrapSafe(filename, content, cjsModuleInstance) {
 }
 ```
 
-patched 是整个代码段中的一个全局变量，在给 Module 挂载 wrap 方法的时候 会将其设置为true， 这部分会在下面的讲解中体现。 接着就是 执行Module.wrap(content); 得到 wrapper，接着我们分析下 Module.wrap 函数，看看 wrapper 究竟是啥？并由此可以进一步解释 问题4 (nodejs 模块中的 exports, require, module, __filename, __dirname 这些值究竟是哪儿来的？)
+patched 是整个代码段中的一个全局变量，在给 Module 挂载 wrap 方法的时候 会将其设置为true， 这部分会在下面的讲解中体现。 接着就是 执行Module.wrap(content); 得到 wrapper，接着我们分析下 Module.wrap 函数，看看 wrapper 究竟是啥？并由此可以进一步解释 问题5 (nodejs 模块中的 exports, require, module, __filename, __dirname 这些值究竟是哪儿来的？)
 
 ### nodejs 模块中的 exports, require, module, __filename, __dirname 这些值究竟是哪儿来的？
 （接上文）
