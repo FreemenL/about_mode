@@ -129,6 +129,8 @@ Module._extensions['.js'] = function(module, filename) {
 
 可以看到不管用那种方处理，同样都用到了 ```fs.readFileSync``` 这个方法来加载文件内容， 处理js文件中最终调用 ```module._compile```这个函数来处理
 
+-> 代码段4 
+
 ```js
 Module.prototype._compile = function(content, filename) {
   let moduleURL;
@@ -186,6 +188,91 @@ Module.prototype._compile = function(content, filename) {
   return result;
 };
 ```
+
+如上我们给Module.prototype._compile 函数增加了两个关键注释  
+
+1. 关键注释一 compiledWrapper
+2. 关键注释二 result
+
+接下来我们挨个对其进行分析
+
+-> 代码段5 
+
+```js
+const compiledWrapper = wrapSafe(filename, content, this);
+```
+compiledWrapper 的结果由 wrapSafe(filename, content, this);给到 wrapSafe这个函数干了啥呢？函数体中有这么一段
+
+-> 代码段6 
+```js
+function wrapSafe(filename, content, cjsModuleInstance) {
+  if (patched) {
+    const wrapper = Module.wrap(content);
+    return vm.runInThisContext(wrapper, {
+      filename,
+      lineOffset: 0,
+      displayErrors: true,
+      importModuleDynamically: async (specifier) => {
+        const loader = asyncESM.ESMLoader;
+        return loader.import(specifier, normalizeReferrerURL(filename));
+      },
+    });
+  }
+}
+```
+patched 是整个代码段中的一个全局变量，在给 Module 挂载 wrap 方法的时候 会将其设置为true， 这部分会在下面的讲解中体现。 接着就是 执行Module.wrap(content); 得到 wrapper，接着我们分析下 Module.wrap 函数，看看 wrapper 究竟是啥？为了便于理解 如下部分代码对源码的顺序进行调整。
+
+```js
+let wrap = function(script) {
+  return Module.wrapper[0] + script + Module.wrapper[1];
+};
+
+const wrapper = [
+  '(function (exports, require, module, __filename, __dirname) { ',
+  '\n});'
+];
+
+let wrapperProxy = new Proxy(wrapper, {
+  set(target, property, value, receiver) {
+    patched = true;
+    return ReflectSet(target, property, value, receiver);
+  },
+
+  defineProperty(target, property, descriptor) {
+    patched = true;
+    return ObjectDefineProperty(target, property, descriptor);
+  }
+});
+
+ObjectDefineProperty(Module, 'wrap', {
+  get() {
+    return wrap;
+  },
+
+  set(value) {
+    patched = true;
+    wrap = value;
+  }
+});
+
+ObjectDefineProperty(Module, 'wrapper', {
+  get() {
+    return wrapperProxy;
+  },
+
+  set(value) {
+    patched = true;
+    wrapperProxy = value;
+  }
+});
+
+```
+
+
+
+
+
+
 
 
 
