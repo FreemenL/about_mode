@@ -10,13 +10,34 @@
 //   ${content}
 // });`)
 
+// const path = require("path");
+
 // console.log('result :', result);
 
 // console.log(mod"ule.exports === exports);
-const a = require("./test1.js")
+// const a = require("./test1.js")
 
-console.log(module.id.trim()===".");
-console.log(require.main === module);
-console.log(module === process.mainModule);
+// console.log(module.id.trim()===".");
+// console.log(require.main === module);
+// console.log(module === process.mainModule);
+// console.log(module);
+// console.log(path.dirname(__dirname));
+
+// exports.a = 1;
+// exports.b = 2;
+// require("./test1");
+// exports.c = 3;
+
+require("./mod");
+
+
+
+
+
+
+
+
+
+
 
 

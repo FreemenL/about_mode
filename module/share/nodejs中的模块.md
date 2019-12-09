@@ -3,25 +3,29 @@
 ### 写在前面
 
 目标读者：具备一定前后端nodejs编程经验并有兴趣深入了解它的模块机制。
-内容简介： 通过源码一步步分析nodejs 模块部分相关的知识
+
+内容简介： 通过源码一步步分析nodejs 模块部分相关的知识(注：这里的源码主要是指[这两个文件](https://github.com/nodejs/node/tree/master/lib/internal/modules/cjs))
+
+行文方式： 为了便于理解， 文中将如上两个文件中的代码切割为```代码段```，透过问题逐个讲解。
 
 ### 前言
 
-Node.js 作为一个足够优秀的js运行时 ，早已成为一名合格的前端攻城狮必备的技能。它几乎覆盖到了前端工程的方方面面，从构建工具到脚手架，再到模版工程，从BFF层构建到后台开发。还包括各种桌面应用等等，它几乎无孔不入。但是你真的了解他（的模块系统）么？
+Node.js 作为一个足够优秀的js运行时 ，早已成为一名前端攻城狮必备的技能。它几乎覆盖到了前端工程的方方面面，从构建工具到脚手架，再到模版工程，从BFF层构建到后台开发。还包括各种桌面应用等等，它几乎无孔不入。但是你真的了解他（的模块系统）么？
+
 
 ### 知识点剧透 
 
 接下来我们将带着如下问题（或许在面试中也会碰到）一起深入探讨nodejs的模块系统。
 
 1. CommonJS规范如何定义模块的？
-2. nodejs 是如何实现一个模块的？-
-3. 在nodejs 中引入一个模块经历了哪些步骤？
+2. nodejs 是如何实现一个模块的？
+3. require 函数导入什么类型的文件会报错？
 4. require 函数支持导入哪几类文件?
 5. nodejs 模块中的 exports, require, module, __filename, __dirname 这些值究竟是哪儿来的？ 
 6. module.exports 与 exports 有什么区别？
 7. nodejs中如何用多种方式判断一个文件是否是被直接运行？
-8. nodejs是如何实现模块缓存的？-
-9. 模块的循环依赖，会导致死循环么？-
+8. nodejs是如何实现模块缓存的？
+9. 模块的循环依赖，会导致死循环么？
 10. nodejs中当目录作为一个模块时是如何被加载的？
 
 
@@ -36,24 +40,193 @@ Node.js 作为一个足够优秀的js运行时 ，早已成为一名合格的前
 
 3. 模块标识 模块标识其实就是传给require 函数的参数。
 
-### 在nodejs中引入一个模块经历了哪些步骤？
+### nodejs 是如何实现一个模块的？
 
-核心模块:
+在nodejs 中一个文件就是一个模块 ，每个模块内部，都有一个 module 对象，代表当前模块。它有以下属性：
 
-1.编译执行
+module.id:  模块的识别符，通常是带有绝对路径的模块文件名(主入口模块除外)。
+module.path:  标识当前模块所在绝对路径
+module.filename:  模块的文件名，带有绝对路径。
+module.loaded:  返回一个布尔值，表示模块是否已经完成加载。
+module.parent:  返回一个对象，表示调用该模块的模块。
+module.children: 返回一个数组，表示该模块要用到的其他模块。
+module.exports:  表示模块对外输出的值
 
-文件模块:
+那么在源码中是如何体现的呢？([如下代码对应源码中的文件](https://github.com/nodejs/node/blob/master/lib/internal/modules/cjs/loader.js)中可以找到）
 
-1. 路径分析
-2. 文件定位
-3. 编译执行
+<a name="code1">->代码段1</a>
+
+```js
+
+function Module(id = '', parent) {
+  this.id = id;
+  this.path = path.dirname(id);
+  this.exports = {};
+  this.parent = parent;
+  updateChildren(parent, this, false);
+  this.filename = null;
+  this.loaded = false;
+  this.children = [];
+}
+
+```
+
+如上代码就是nodejs中的模块定义。有了定义我们接下来看下模块是如何被引用的，这部分可以直接分析如下代码的逻辑
+
+<a name="code2"> ->代码段2 </a>
+
+```js
+
+Module._load = function(request, parent, isMain) {
+  let relResolveCacheIdentifier;
+  if (parent) {
+    debug('Module._load REQUEST %s parent: %s', request, parent.id);
+    // Fast path for (lazy loaded) modules in the same directory. The indirect
+    // caching is required to allow cache invalidation without changing the old
+    // cache key names.
+    relResolveCacheIdentifier = `${parent.path}\x00${request}`;
+    const filename = relativeResolveCache[relResolveCacheIdentifier];
+    if (filename !== undefined) {
+      const cachedModule = Module._cache[filename];
+      if (cachedModule !== undefined) {
+        updateChildren(parent, cachedModule, true);
+        if (!cachedModule.loaded)
+          return getExportsForCircularRequire(cachedModule);
+        return cachedModule.exports;
+      }
+      delete relativeResolveCache[relResolveCacheIdentifier];
+    }
+  }
+
+  const filename = Module._resolveFilename(request, parent, isMain);
+
+  const cachedModule = Module._cache[filename];
+  if (cachedModule !== undefined) {
+    updateChildren(parent, cachedModule, true);
+    if (!cachedModule.loaded)
+      return getExportsForCircularRequire(cachedModule);
+    return cachedModule.exports;
+  }
+
+  const mod = loadNativeModule(filename, request);
+  if (mod && mod.canBeRequiredByUsers) return mod.exports;
+
+  // Don't call updateChildren(), Module constructor already does.
+  const module = new Module(filename, parent);
+
+  if (isMain) {
+    process.mainModule = module;
+    module.id = '.';
+  }
+
+  Module._cache[filename] = module;
+  if (parent !== undefined) {
+    relativeResolveCache[relResolveCacheIdentifier] = filename;
+  }
+
+  let threw = true;
+  try {
+    // Intercept exceptions that occur during the first tick and rekey them
+    // on error instance rather than module instance (which will immediately be
+    // garbage collected).
+    if (enableSourceMaps) {
+      try {
+        module.load(filename);
+      } catch (err) {
+        rekeySourceMap(Module._cache[filename], err);
+        throw err; /* node-do-not-add-exception-line */
+      }
+    } else {
+      module.load(filename);
+    }
+    threw = false;
+  } finally {
+    if (threw) {
+      delete Module._cache[filename];
+      if (parent !== undefined) {
+        delete relativeResolveCache[relResolveCacheIdentifier];
+      }
+    } else if (module.exports &&
+               ObjectGetPrototypeOf(module.exports) ===
+                 CircularRequirePrototypeWarningProxy) {
+      ObjectSetPrototypeOf(module.exports, PublicObjectPrototype);
+    }
+  }
+
+  return module.exports;
+};
+
+```
+
+_load函数的主要逻辑为：
+
+1. 判断缓存中是否存在当前模块，如果有的化直接从缓存中读取。
+2. 判断当前模块是否是nodejs的原生模块，如果是的话走的是读取原生模块的相关逻辑。
+3. 普通文件模块调用的是 ``` module.load ``` 方法加载文件的。
+
+通过分析 module.load 进而可得知 require 函数导入什么类型的文件会报错？
+
+### require 函数导入什么类型的文件会报错？ 
+
+<a name="code3"> ->代码段3 </a>
+
+module.load
+
+```js
+
+Module.prototype.load = function(filename) {
+  debug('load %j for module %j', filename, this.id);
+
+  assert(!this.loaded);
+  this.filename = filename;
+  this.paths = Module._nodeModulePaths(path.dirname(filename));
+
+  const extension = findLongestRegisteredExtension(filename);
+  // allow .mjs to be overridden
+  if (filename.endsWith('.mjs') && !Module._extensions['.mjs']) {
+    throw new ERR_REQUIRE_ESM(filename);
+  }
+  Module._extensions[extension](this, filename);
+  this.loaded = true;
+
+  const ESMLoader = asyncESM.ESMLoader;
+  const url = `${pathToFileURL(filename)}`;
+  const module = ESMLoader.moduleMap.get(url);
+  // Create module entry at load time to snapshot exports correctly
+  const exports = this.exports;
+  // Called from cjs translator
+  if (module !== undefined && module.module !== undefined) {
+    if (module.module.getStatus() >= kInstantiated)
+      module.module.setExport('default', exports);
+  } else {
+    // Preemptively cache
+    // We use a function to defer promise creation for async hooks.
+    ESMLoader.moduleMap.set(
+      url,
+      // Module job creation will start promises.
+      // We make it a function to lazily trigger those promises
+      // for async hooks compatibility.
+      () => new ModuleJob(ESMLoader, url, () =>
+        new ModuleWrap(url, undefined, ['default'], function() {
+          this.setExport('default', exports);
+        })
+      , false /* isMain */, false /* inspectBrk */)
+    );
+  }
+};
+
+```
+
+如上代码中会判断文件如果是以.mjs结尾的并且Module._extensions没有这个扩展。会直接抛错。
+
+正常情况下 是通过 ```Module._extensions[extension](this, filename);```的方式加载文件的 这个会在接下来的内容中详细分析。
 
 ### require 函数支持导入哪几类文件?
 
 模块内的 require 函数，支持的文件类型主要有 .js 、.json 和 .node。其中 .js 和 .json 文件，相信大家都很熟悉了，.node 后缀的文件是 Node.js 的二进制文件。然而为什么 require 函数，只支持这三种文件格式呢？其实答案在模块内输出的 require 函数对象中 
 我们新建一个 test.js 内容如下：
 
-<a name="code1">->代码段1</a>
+
 
 ```js
 console.log(require.extensions);
@@ -63,7 +236,7 @@ console.log(require.extensions);
 
 在require 函数对象中，有一个 extensions 属性，顾名思义表示它支持的扩展名。细心的同学应该已经发现不同的后缀文件都对应的各自的加载函数，这块的逻辑对应的[源码文件](https://github.com/nodejs/node/blob/master/lib/internal/modules/cjs/helpers.js)在源码中可以找到如下代码
 
-<a name="code2">->代码段2</a>
+<a name="code4"> ->代码段4 </a>
 
 ```js
 function makeRequireFunction(mod, redirects) {
@@ -147,7 +320,7 @@ require.extensions = Module._extensions;
 接来下我们找到[源码中定义Module的文件](https://github.com/nodejs/node/blob/master/lib/internal/modules/cjs/loader.js)来分析 
 
 
-<a name="code3">->代码段3</a>
+<a name="code5"> ->代码段5 </a>
 
 ```js
 // Native extension for .js
@@ -198,7 +371,7 @@ Module._extensions['.node'] = function(module, filename) {
 
 如上所述，可以看到不同后缀的文件对应各自的加载函数。.json文件的逻辑可以简单理解为用fs.readFileSync的方式读取到文件内容，然后将其内容格式化成对象后输出。而 .node 文件的处理方式，因为涉及到 bindings 这个后面会有专门的文章介绍这块内容。这里我们就来重点分析下 .js 文件的处理方式。
 
-<a name="code4"> -> 代码段4 </a>
+<a name="code6"> -> 代码段6 </a>
 
 ```js
 // Native extension for .js
@@ -219,7 +392,7 @@ Module._extensions['.js'] = function(module, filename) {
 
 可以看到不管用那种方处理，同样都用到了 ```fs.readFileSync``` 这个方法来加载文件内容， 处理js文件中最终调用 ```module._compile```这个函数来处理
 
-<a name="code5"> ->代码段5 </a>
+<a name="code7"> ->代码段7 </a>
 
 ```js
 Module.prototype._compile = function(content, filename) {
@@ -286,14 +459,14 @@ Module.prototype._compile = function(content, filename) {
 
 接下来我们挨个对其进行分析
 
-<a name="code6"> -> 代码段6 </a>
+<a name="code8"> -> 代码段8 </a>
 
 ```js
 const compiledWrapper = wrapSafe(filename, content, this);
 ```
 compiledWrapper 的结果由 wrapSafe(filename, content, this);给到 wrapSafe这个函数干了啥呢？函数体中有这么一段
 
-<a name="code7"> -> 代码段7 </a>
+<a name="code9"> -> 代码段9 </a>
 
 ```js
 function wrapSafe(filename, content, cjsModuleInstance) {
@@ -317,7 +490,7 @@ patched 是整个代码段中的一个全局变量，在给 Module 挂载 wrap �
 ### nodejs 模块中的 exports, require, module, __filename, __dirname 这些值究竟是哪儿来的？
 （接上文）
 
-<a name="code8"> -> 代码段8 </a>
+<a name="code10"> -> 代码段10 </a>
 
 ```js
 
@@ -366,7 +539,7 @@ ObjectDefineProperty(Module, 'wrapper', {
 
 ```
 
-分析如上代码片段可以得知 [代码段7](#code7)  中的 ```const wrapper = Module.wrap(content);``` 拿到的结果为 
+分析如上代码片段可以得知 [代码段9](#code9)  中的 ```const wrapper = Module.wrap(content);``` 拿到的结果为 
 
 ```js
 
@@ -376,7 +549,7 @@ ObjectDefineProperty(Module, 'wrapper', {
 
 ```
 
-这样的一个字符串，然后将其传给 ```vm.runInThisContext()``` ,在当前的 global 对象的上下文中编译并执行如上代码，最后返回结果。 所以代码段4 中的关键注释一 compiledWrapper 拿到的结果就是个函数，当然这里还只是一个函数的定义 ，那么运行时传入函数的这些实参又是哪儿来的呢？ 我们接下来看上面代码段4中的代码。
+这样的一个字符串，然后将其传给 ```vm.runInThisContext()``` ,在当前的 global 对象的上下文中编译并执行如上代码，最后返回结果。 所以代码段4 中的关键注释一 compiledWrapper 拿到的结果就是个函数，当然这里还只是一个函数的定义 ，那么运行时传入函数的这些实参又是哪儿来的呢？ 我们接下来看上面代码段7中的代码。
 
 ```js
 Module.prototype._compile = function(content, filename) {
@@ -458,11 +631,11 @@ const module = this;
 
 filename：是加载模块的时候传来的文件名
 dirname: 由path函数解析 filename 得到的
-require: 由[代码段2](#code2) 中makeRequireFunction 函数返回,可以看到其实对于普通js文件的引入 最终调用的是[代码段9](#code9)
+require: 由[代码段4](#code4) 中makeRequireFunction 函数返回,可以看到其实对于普通js文件的引入 最终调用的是[代码段2-](#code2)
 exports: Module对象的实例属性 
 module: 指Module对象的实例属性
 
-<a name="code9"> -> 代码段9 </a>
+<a name="code11"> -> 代码段11 </a>
 
 ```js
 Module._load = function(request, parent, isMain) {
@@ -565,13 +738,13 @@ module.exports = { id: 1 }; // 方式三：可以正常导出
 ```
 由上可知 module.exports === exports 执行的结果为 true，那么表示模块中的 exports 变量与 module.exports 属性是指向同一个对象。当使用方式二 exports = { id: 1 } 的方式会改变 exports 变量的指向，这时与module.exports 属性指向不同的变量，而当我们导入某个模块时，是导入 module.exports 属性指向的对象。因此 方式二：无法正常导出。
 
-### nodejs中如何判断一个文件是否是被直接运行 ？
+### nodejs中如何用多种方式判断一个文件是否是被直接运行 ？
 
 > 当 Node.js 直接运行一个文件时， require.main 会被设为它的 module。 这意味着可以通过 require.main === module 来判断一个文件是否被直接运行
 
 如上这句话 摘自nodejs 的官方文档，那么在源码中是如何体现的呢？
 
-可以结合[代码段2](#code2)和[代码段9](#code9) 来解释 代码段9中的逻辑
+可以结合[代码段2](#code2)和[代码段4](#code4) 来解释 代码段2中的逻辑
 
 ```js
 if (isMain) {
@@ -582,7 +755,7 @@ if (isMain) {
 
 如果当前模块是主模块 就把 process.mainModule  指向当前模块 并且 ```module.id = '.' ```
 
-接着代码段2中把require.main 指向了 process.mainModule
+接着[代码段4](#code4)中把require.main 指向了 process.mainModule
 
 ```js
  require.main = process.mainModule;
@@ -596,58 +769,118 @@ console.log(require.main === module);
 console.log(process.mainModule === module);
 ```
 
+### nodejs是如何实现模块缓存的？
+
+我们可以回过去看[代码段4](#code4)中有如下关键性的一句
+
+```js
+
+require.cache = Module._cache;
+
+```
+
+可以看到 require.cache 指向的是 Module._cache。 那 Module._cache 缓存是啥呢？[代码段2](#code2)中给出了答案：
+
+```js
+ Module._cache[filename] = module;
+```
+
+Module._cache 记录了当前被引入的模块，下次在执行Module._load 加载模块的时候就会去缓存中直接拿结果了。
 
 
+### 模块的循环依赖，会导致死循环么？
 
 
+首先我们先简单解释一下循环依赖，当模块 a 执行时需要依赖模块 b 中定义的属性或方法，而在导入模块 b 中，发现模块 b 同时也依赖模块 a 中的属性或方法，即两个模块之间互相依赖，这种现象我们称之为循环依赖。
+
+介绍完循环依赖的概念，那出现这种情况会出现死循环么？我们马上来验证一下
+
+test.js
+
+```js
+
+exports.a = 1;
+exports.b = 2;
+require("./module2");
+exports.c = 3;
+
+```
+
+test1.js
+
+```js
+const Module1 = require('./module1');
+console.log('Module1 is partially loaded here', Module1)
+```
+
+当我们在命令行中输入 node test.js 命令，你会发现程序正常运行，并且在控制台输出了以下内容：
+
+<img src="./mo.png"/>
+
+通过实际验证，我们发现出现循环依赖的时候，程序并不会出现死循环，但只会输出相应模块已加载的部分数据。
 
 
+### nodejs中当目录作为一个模块时是如何被加载的？
 
+我们知道 require  函数中可以接受一个模块的相对路径字符串，那如果传给require 函数的是一个目录呢？上代码：
 
+test.js
 
+```js
+require("./mod");
+```
 
+跟test.js同级新建 mod文件夹，然后运行 ``` npm init -y ``` 然后修改package.json 文件 如下
 
+```json
+{
+  "name": "mod",
+  "version": "1.0.0",
+  "description": "",
+  "main": "load.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
+```
 
+main 字段 指向的 laod.js代码如下：
 
+```js
+console.log("load file");
+```
+然后在test.js 所在目录运行 node test.js  输出如下：
 
+```bash
+load file
+```
+可以看到，requie('./mod') 加载的是 mod下package.json 文件中main字段指向的模块，然后我们再修改 main 字段为一个不寻在的值 ’ ```"main": "load.js",``` 然后在test.js 所在目录运行 node test.js  输出如下：
 
+```bash
+Error: Cannot find module './mod'
+    at Function.Module._resolveFilename (module.js:548:15)
+    at Function.Module._load (module.js:475:25)
+    at Module.require (module.js:597:17)
+    at require (internal/module.js:11:18)
+```
 
+可以看到 直接报错了，那这个时候我们 在mod 目录新建一个index.js 内容如下
 
+```js
+console.log("load index");
+```
+然后在test.js 所在目录运行 node test.js  输出如下：
 
+```bash
+load index
+```
 
+可以看到，这个时候直接加载到了index.js 的内容。 所以我们的结论如下：
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+nodejs中当目录作为一个模块时，首先会去查找该目录下的 package.json 中的main字段对应的文件，如果寻在就加载该模块，如果main字段对应的是一个不存在的模块，那么这个时候会去找 该目录下的index.js 如果找的到就加载，找不到就直接报错。
 
 
 
