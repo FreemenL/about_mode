@@ -44,13 +44,19 @@ Node.js 作为一个足够优秀的js运行时 ，早已成为一名前端攻城
 
 在nodejs 中一个文件就是一个模块 ，每个模块内部，都有一个 module 对象，代表当前模块。它有以下属性：
 
-module.id:  模块的识别符，通常是带有绝对路径的模块文件名(主入口模块除外)。
-module.path:  标识当前模块所在绝对路径
-module.filename:  模块的文件名，带有绝对路径。
-module.loaded:  返回一个布尔值，表示模块是否已经完成加载。
-module.parent:  返回一个对象，表示调用该模块的模块。
-module.children: 返回一个数组，表示该模块要用到的其他模块。
-module.exports:  表示模块对外输出的值
+```module.id:```  模块的识别符，通常是带有绝对路径的模块文件名(主入口模块除外)。
+
+```module.path:```  标识当前模块所在绝对路径
+
+```module.filename:```  模块的文件名，带有绝对路径。
+
+```module.loaded: ``` 返回一个布尔值，表示模块是否已经完成加载。
+
+```module.parent: ``` 返回一个对象，表示调用该模块的模块。
+
+```module.children:``` 返回一个数组，表示该模块要用到的其他模块。
+
+```module.exports:```  表示模块对外输出的值
 
 那么在源码中是如何体现的呢？([如下代码对应源码中的文件](https://github.com/nodejs/node/blob/master/lib/internal/modules/cjs/loader.js)中可以找到）
 
@@ -629,11 +635,15 @@ const module = this;
 
 由此可以解释 
 
-filename：是加载模块的时候传来的文件名
-dirname: 由path函数解析 filename 得到的
-require: 由[代码段4](#code4) 中makeRequireFunction 函数返回,可以看到其实对于普通js文件的引入 最终调用的是[代码段2-](#code2)
-exports: Module对象的实例属性 
-module: 指Module对象的实例属性
+```filename：``` 是加载模块的时候传来的文件名
+
+```dirname:``` 由path函数解析 filename 得到的
+
+```require:``` 由[代码段4](#code4) 中makeRequireFunction 函数返回,可以看到其实对于普通js文件的引入 最终调用的是[代码段2](#code2)
+
+```exports:``` Module对象的实例属性 
+
+```module: ```指Module对象的实例
 
 <a name="code11"> -> 代码段11 </a>
 
@@ -744,7 +754,7 @@ module.exports = { id: 1 }; // 方式三：可以正常导出
 
 如上这句话 摘自nodejs 的官方文档，那么在源码中是如何体现的呢？
 
-可以结合[代码段2](#code2)和[代码段4](#code4) 来解释 代码段2中的逻辑
+可以结合[代码段2](#code2)和[代码段4](#code4) 来解释
 
 ```js
 if (isMain) {
@@ -881,16 +891,3 @@ load index
 可以看到，这个时候直接加载到了index.js 的内容。 所以我们的结论如下：
 
 nodejs中当目录作为一个模块时，首先会去查找该目录下的 package.json 中的main字段对应的文件，如果寻在就加载该模块，如果main字段对应的是一个不存在的模块，那么这个时候会去找 该目录下的index.js 如果找的到就加载，找不到就直接报错。
-
-
-
-
-
-
-
-
-
-
-
-
-
