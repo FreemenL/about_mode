@@ -28,7 +28,8 @@
 // require("./test1");
 // exports.c = 3;
 
-require("./mod");
+// require("./mod");
+const utils = require("./utils");
 
 
 
