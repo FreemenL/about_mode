@@ -1,0 +1,12 @@
+v8-version,6,8,275,32,-node.52,0
+code-deopt,899650235,3936,0x3e2b9d761b80,6,34022,eager,<_stream_readable.js:1113:22> inlined at <_stream_readable.js:408:7>,wrong map
+code-deopt,899651986,352,0x3e2b9d76aee0,-1,3749,eager,<_stream_duplex.js:120:14>,wrong map
+code-deopt,899652206,6432,0x3e2b9d76efc0,-1,15462,eager,<net.js:587:19>,wrong map
+code-deopt,985704528,3840,0x3e2b9d771e00,2,5942,soft,<_http_common.js:182:7> inlined at <_http_server.js:438:5>,Insufficient type feedback for call
+code-deopt,985704885,448,0x3e2b9d77d600,-1,1083,eager,<internal/timers.js:46:45>,wrong map
+code-deopt,1007044865,1088,0x3e2b9d9bb260,-1,29717,eager,<_stream_readable.js:955:24>,wrong map
+code-deopt,1007044997,4096,0x3e2b9d9bbb80,6,34022,eager,<_stream_readable.js:1113:22> inlined at <_stream_readable.js:408:7>,wrong map
+code-deopt,1007067219,4000,0x3e2b9d9b4680,0,16854,eager,<_stream_readable.js:526:22> inlined at <_stream_readable.js:511:5>,wrong map
+code-deopt,1056328431,2368,0x3e2b9d7c43c0,-1,3551,eager,<_stream_readable.js:83:31>,wrong map
+code-deopt,1406397282,2368,0x3e2b9d9cd620,-1,3551,eager,<_stream_readable.js:83:31>,wrong map
+code-deopt,1406397461,672,0x3e2b9d9d6a40,0,224,eager,<internal/streams/state.js:6:18> inlined at <internal/streams/state.js:11:15>,wrong map
